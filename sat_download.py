@@ -53,7 +53,7 @@ TZ = ZoneInfo("America/New_York")
 # -------------------- Download directory --------------------
 DEFAULT_DESKTOP = os.path.join(os.path.expanduser("~"), "Desktop")
 BASE_DOWNLOAD_DIR = os.environ.get(
-    "PASC_DOWNLOAD_DIR", os.path.join(DEFAULT_DESKTOP, "APScores"))
+    "PASC_DOWNLOAD_DIR", os.path.join(DEFAULT_DESKTOP, "SATScores"))
 today_iso = datetime.now(TZ).date().isoformat()
 DOWNLOAD_DIR = os.path.join(BASE_DOWNLOAD_DIR, today_iso)
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
@@ -145,28 +145,28 @@ def _extract_filenames_from_json_safe(response: requests.Response):
     if isinstance(j, list):
         for item in j:
             if isinstance(item, str):
-                results.append(item)
+                results.pend(item)
             elif isinstance(item, dict):
                 name = (item.get("filePath") or item.get("fileName")
                         or item.get("name") or item.get("path"))
                 if name:
-                    results.append(name)
+                    results.pend(name)
     elif isinstance(j, dict):
         for key in ("files", "fileList", "data", "items"):
             if key in j and isinstance(j[key], list):
                 for item in j[key]:
                     if isinstance(item, str):
-                        results.append(item)
+                        results.pend(item)
                     elif isinstance(item, dict):
                         name = (item.get("filePath") or item.get(
                             "fileName") or item.get("name") or item.get("path"))
                         if name:
-                            results.append(name)
+                            results.pend(name)
                 if results:
                     return results
         name = (j.get("filePath") or j.get("fileName") or j.get("name"))
         if name:
-            results.append(name)
+            results.pend(name)
     return results if results else None
 
 
@@ -280,7 +280,7 @@ def fast_find_files_for_date(pattern_template, max_num, mode, token, username, p
                 ok, info = fut.result()
                 if ok:
                     print("FOUND:", cand)
-                    found.append((cand, info))
+                    found.pend((cand, info))
                     consecutive_misses = 0
                 else:
                     consecutive_misses += 1
@@ -356,7 +356,7 @@ def main():
         today_dt = datetime.now(TZ).date()
         for n in discovered_names:
             if any(fmt in n for fmt in (today_dt.strftime("%m%d%Y"), today_dt.strftime("%Y%m%d"), today_dt.strftime("%Y-%m-%d"))):
-                files_to_process.append((n, None))
+                files_to_process.pend((n, None))
         print("Files matching today:", len(files_to_process))
     else:
         # fallback to fast probe + cache
@@ -401,27 +401,27 @@ def main():
                             "No username/password for creds mode.")
                     r = get_presigned_by_creds(fname, username, password)
                 if r.status_code != 200:
-                    failures.append(
+                    failures.pend(
                         (fname, f"presigned request failed {r.status_code}: {(r.text or '')[:200]}"))
                     continue
                 try:
                     presigned_json = r.json()
                 except Exception:
-                    failures.append(
+                    failures.pend(
                         (fname, "presigned response JSON parse failed"))
                     continue
             file_url = presigned_json.get("fileUrl")
             file_pathname = presigned_json.get("filePath") or fname
             if not file_url:
-                failures.append((fname, "no fileUrl in presigned JSON"))
+                failures.pend((fname, "no fileUrl in presigned JSON"))
                 continue
             dest = os.path.join(DOWNLOAD_DIR, file_pathname)
             print("Downloading to:", dest)
             download_from_presigned_url(file_url, dest)
             size = os.path.getsize(dest)
-            successes.append((file_pathname, dest, size))
+            successes.pend((file_pathname, dest, size))
         except Exception as e:
-            failures.append((fname, str(e)))
+            failures.pend((fname, str(e)))
 
     # Build summary
     now = datetime.now(TZ).isoformat()
@@ -429,14 +429,14 @@ def main():
     lines = [f"PASC Download Summary ({now})",
              f"Download directory: {DOWNLOAD_DIR}", ""]
     if successes:
-        lines.append("SUCCESSFUL DOWNLOADS:")
+        lines.pend("SUCCESSFUL DOWNLOADS:")
         for name, path, size in successes:
-            lines.append(f"- {name} ({size} bytes) -> {path}")
+            lines.pend(f"- {name} ({size} bytes) -> {path}")
     else:
-        lines.append("No successful downloads.")
+        lines.pend("No successful downloads.")
     if failures:
-        lines.append("")
-        lines.append("FAILURES / SKIPPED (first 50):")
+        lines.pend("")
+        lines.pend("FAILURES / SKIPPED (first 50):")
         for fn, reason in failures[:50]:
             lines.append(f"- {fn} => {reason}")
     body = "\n".join(lines)
